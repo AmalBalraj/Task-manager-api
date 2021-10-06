@@ -1,6 +1,9 @@
 const express = require('express')
 const User = require('../models/user')
 const auth = require('../middleware/Auth')
+const multer = require('multer')
+const sharp = require('sharp')
+const { sendEmail, sendCancellationEmail } = require('../email/account')
 
 const router = new express.Router()
 
@@ -18,6 +21,7 @@ router.post('/users',async (req, res)=>{
     try {
         const token = await user.generateAuthToken()
         await user.save()
+        sendEmail(user.email, user.name)
         res.status(201).send({user,token})
     } catch (error) {
         res.status(400).send(error)
@@ -57,6 +61,28 @@ router.post('/users/logoutAll',auth , async (req , res) => {
     }
 })
 
+const upload = multer({
+    limits:{
+        fileSize: 10000000
+    },
+    fileFilter(req, file, cb){
+        if(!file.originalname.match(/\.(jpg|png|jpeg)$/)){
+            return cb(new Error('Please upload Image file'))
+        }
+        cb(undefined, true)
+        // cb(new Error('File must be an Image'))
+    }
+})
+
+router.post('/users/me/avatar', auth, upload.single('avatar'), async (req , res) => {
+    const buffer = await sharp(req.file.buffer).resize({ width:250, heigth:250 }).png().toBuffer()
+    req.user.avatar = buffer
+    await req.user.save()
+    res.send()
+},(error, req ,res, next) => {
+    res.status(400).send(error.message)
+})
+
 router.get('/users/me', auth ,async (req , res) => {
     try {
         res.send(req.user)
@@ -65,6 +91,20 @@ router.get('/users/me', auth ,async (req , res) => {
     }
 })
 
+router.get('/users/:id/avatar', async(req , res) => {
+    try {
+        const user = await User.findById(req.params.id)
+
+        if(!user || !user.avatar){
+            throw new Error()
+        }
+    
+        res.set('Content-type','image/png')
+        res.send(user.avatar)
+    } catch (e) {
+        res.send(e)
+    }
+})
 
 router.patch('/users/me', auth, async (req, res) => {
     const updates = Object.keys(req.body)
@@ -89,10 +129,21 @@ router.patch('/users/me', auth, async (req, res) => {
 
 router.delete('/users/me', auth, async (req , res) =>{
     try {
+        sendCancellationEmail(req.user.email,req.user.name)
         await req.user.remove()
         res.send("user has been deleted")
     } catch (e) {
         res.status(500).send("Server down")
+    }
+})
+
+router.delete('/users/me/avatar', auth, async(req , res) => {
+    try {
+        req.user.avatar = undefined
+        await req.user.save()
+        res.send("user avatar has been removed")
+    } catch (e) {
+        res.status(500).send("Error removing please try again later")
     }
 })
 
