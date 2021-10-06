@@ -7,14 +7,14 @@ const { sendEmail, sendCancellationEmail } = require('../email/account')
 
 const router = new express.Router()
 
-router.post('/users/getall', async (req , res) => {
-    try {
-        const users = await User.find({})
-        res.send(users)
-    } catch (e) {
-        res.send("Not working")
-    }
-})
+// router.post('/users/getall', async (req , res) => {
+//     try {
+//         const users = await User.find({})
+//         res.send(users)
+//     } catch (e) {
+//         res.send("Not working")
+//     }
+// })
 
 router.post('/users',async (req, res)=>{
     const user = new User(req.body)
